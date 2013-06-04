@@ -1,0 +1,87 @@
+
+                       -----------------------------------
+                       LOOPZ48 ver 1.1  by Andreas Daumann
+                       -----------------------------------
+
+
+
+Hey HP-Freaks and Fans,
+
+ well I brought you another hot game for the great HP48 handheld computer.
+Do you know LOOPZ? It's also realized on PC, AMIGA and GAMEBOY. It's based
+on a nice idea which remembers on TETRIS or PIPEMANIA. If you like this little
+game please write me a postcard or some other gift (money for example)
+from your country, I would be very pleased. The address stands at the
+end of the document.
+
+Notes: - This game was written in USR-RPL and SChip V1.1 (main part!)
+       - Thanks to E. Bryntse for SCHIP V1.1,  A. Gustafsson for CHIP48
+         and Chr. Egeberg for (S)Chip Assembler V2.11.
+       - This program is public domain (anyway send me a gift!)
+       - First I wanted to write more features (Bonus rounds, more graphics
+         etc.) but the 4KB limit of SCHIP programs stopped my enthusiasm.
+         I'm sorry maybe I write the second version in ML.
+	   - loopz48s is for HP48S and loopz48g for ... guess it
+	   - for HP48G only: you need the library schiplib.gx
+
+
+I. Installing
+-- ----------
+
+1. File List:  LOOPZ48S.       The complete game (+SCHIP11) ready to upload
+			   LOOPZ48G        you need schiplib.gx	
+
+               LOOPZ48.CHP    The SCHIP source code of LOOPZ
+                              (Compile: chipper ccode loopz48.chp)
+
+               LOOPZ48.DOC    This file
+
+
+2. Transfer:   Use Kermit to transfer the code of the game
+
+               HP48:          [I/O] [SETUP] [IR/W] --> set to wire
+                              [<--] [UP]
+                              [I/O] [RECV]
+               PC:            kermit send loopz48.
+
+
+3. Menu:       [LOOPZ48]      Starts the game
+               [INFO]         Shows cursor keys
+
+II. Playing
+--- -------
+
+[LOOPZ48] starts the game. Press any key to continue (DEL = quit).
+Select level using [1] [2] and [5] to go on. The game will start.
+
+Keys:
+
+Left  : 1       Right  : 2
+Up    : /       Down   : *
+Turn  : 6       Drop/OK: 5
+Sound : +/-     Quit   : DEL or ENTER
+
+You have three lifes, you lose one life if the time is out.
+                                 ÉÍÍ»
+Try to build loops. For example: º  ÈÍ» then the loop will be erased.
+                                 ÈÍÍÍÍ¼
+If you are lucky you get a 'Scratcher' like this one 'o'. Then you can
+delete bad tries.
+
+The higher the level, the faster the game and the more points you get.
+
+At the end the whole gamematrix will be erased and the more tiles are on
+the board the more points you get.
+
+
+
+
+Postage:
+
+Andreas Daumann
+Walpurgisstr35
+45131 Essen/Germany
+andreasandreas@gmx.de
+
+
+

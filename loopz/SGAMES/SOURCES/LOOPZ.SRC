@@ -1,0 +1,1503 @@
+;
+; LOOPZ48 ver. 1.0
+; --------------------------------------------------
+; Author:      Andreas Daumann
+; Function:    Game
+; Language:    SCHIP48 (for HP48 handheld computers)
+; Config.:     (S)CHIP 48 Assembler V2.11
+;              SChip V1.1 Emulator
+; --------------------------------------------------
+;                                          June 1993
+;
+;              (read LOOPZ48.DOC for further info.)
+;
+;V0-V7         temp
+;V8            xpos stone
+;V9            ypos stone
+;VA            Stone no.
+;VB            Stone turn no.
+;VC            Stone pos + Blank
+;VD            Stoneblock no.
+;VE            Stone blank pos.
+
+align off      ; No word alignement: we allow 8-bit data
+option binary  ; Output format is a BINARY file
+option schip11 ; We use the SCHIP instruction set
+undef hphead   ; Already said we want a binary file. Compiler is buggy here
+
+KLEFT =        #7 ;1
+KRIGHT =       #8 ;2
+KUP =          #C ;/
+KDOWN =        #D ;*
+KTURN =        #6 ;6
+KDROP =        #5 ;5
+
+               ;---------
+               ;CODEBLOCK
+               ;---------
+
+               JP MAIN
+
+               DA '(c) A.Daumann' 
+
+               ;MAIN: initialize and big gameloop
+               ;in  : -
+               ;out : -
+
+MAIN:          CLS                           
+               HIGH
+               LD V2,R                       ;Called from USR Prog.?
+               SE V1,170
+               EXIT
+               SE V2,170
+               EXIT
+               LD I,LEVEL                    ;which level ?
+               LD [I],V0
+               CALL COPYMATRIX               ;init. Matrix
+               CALL BUILDFRAME
+               LD V0,0                       ;fill Clock
+               LD I,AKTTIME
+               LD [I],V0
+               CALL FILLTIME
+               LD I,LIFES                    ;fill Lives
+               LD V0,2
+               LD [I],V0
+               CALL VIEWLIFES
+               LD V0,0                       ;init. Loops and Score
+               LD I,LOOP
+               LD [I],V0
+               LD I,LOOP+1
+               LD [I],V0
+               LD I,LOOP+2
+               LD [I],V0
+               LD I,SCORE
+               LD [I],V0
+               LD I,SCORE+1
+               LD [I],V0
+               LD I,SCORE+2
+               LD [I],V0
+               LD I,SCORE+3
+               LD [I],V0
+               LD I,SCORE+4
+               LD [I],V0
+               LD I,SCORE+5
+               LD [I],V0
+               CALL VIEWLOOP
+               CALL VIEWSCORE
+               LD V8,8                       ;random stone
+               LD V9,3
+               CALL RNDSTONE
+               CALL SETSTONE
+
+GAMELOOP:      LD V0,KLEFT                   ;key test
+               SKNP V0
+               CALL GOLEFT
+               LD V0,KRIGHT
+               SKNP V0
+               CALL GORIGHT
+               LD V0,KUP
+               SKNP V0
+               CALL GOUP
+               LD V0,KDOWN
+               SKNP V0
+               CALL GODOWN
+               LD V0,KTURN
+               SKNP V0
+               CALL TURN
+               LD V0,KDROP
+               SKNP V0
+               CALL DROP
+               CALL DECTIME                  ;decr. time ticks
+               LD I,AKTTIME                  ;test if time out
+               LD V0,[I]
+               SE V0,0
+               JP GAMELOOP
+               CALL DECLIFE                  ;decr. life if time out
+               LD I,LIFES                    ;test if life out
+               LD V0,[I]
+               SE V0,255
+               JP M_L1
+               JP M_L2
+M_L1:          LD V0,#FF                     ;Beep Beep Beep
+M_L3:          ADD V0,1
+               LD V1,15
+               LD ST,V1
+               LD V1,40
+               LD DT,V1
+M_L4:          LD V1,DT                      ;New life, new change
+               SE V1,0
+               JP M_L4
+               SE V0,2
+               JP M_L3
+               CALL FILLTIME
+               CALL SETSTONE
+               CALL RNDSTONE
+               CALL SETSTONE
+               JP GAMELOOP
+M_L2:          CALL SETSTONE                 ;Game Over
+               CALL SCMATRIX                 ;deletes all
+               LD V0,#FF
+M_L6:          ADD V0,2                      ;Beeping
+               LD V1,15
+               LD ST,V0
+               LD V1,11
+               LD DT,V1
+M_L7:          LD V1,DT
+               SE V1,0
+               JP M_L7
+               SE V0,11
+               JP M_L6
+               LD I,SCORE                    ;Move Score into USR Flags
+               LD V5,[I]
+               LD V6,170
+               LD V7,170
+               LD R,V7
+               LD V0,K
+               LD V0,#FF
+M_L5:          ADD V0,1                      ;Scroll screen down
+               SCD 1
+               SE V0,64
+               JP M_L5
+               EXIT                          ;Bye, bye
+
+               ;BUILDELEM: draw element on screen 
+               ;in  : v5=xcoord v6=ycoord v7=element no.
+               ;out : -
+
+BUILDELEM:     LD I,XPOS                     
+               ADD I,V5
+               LD V0,[I]
+               LD V2,V0
+               LD I,YPOS
+               ADD I,V6
+               LD V0,[I]
+               LD V3,V0
+               LD V1,6                       
+               LD I,YPOS
+               ADD I,V7
+               LD V0,[I]
+               LD I,GRAPHICS
+               ADD I,V0
+               DRW V2,V3,6                   
+               RET
+
+               ;COPYMATRIX : initialize the gamematrix
+               ;in  : -
+               ;out : -
+
+COPYMATRIX:    LD V1,#FF                     
+CM_L1:         ADD V1,1
+               LD I,MATRIXNORM
+               ADD I,V1
+               LD V0,[I]
+               LD I,MATRIX
+               ADD I,V1
+               LD [I],V0
+               SE V1,179
+               JP CM_L1
+               RET
+
+               ;GETMATRIX:get one element of gamematrix
+               ;in  : v5=xcoord v6=ycoord
+               ;out : v7=element no.
+
+GETMATRIX:     LD V1,#EB
+               LD V0,#FF 
+GM_L1:         ADD V0,1
+               ADD V1,1
+               SE V0,V5
+               JP GM_L1
+               LD V0,#FF
+GM_L2:         ADD V0,1
+               ADD V1,20
+               SE V0,V6
+               JP GM_L2
+               LD I,MATRIX
+               ADD I,V1
+               LD V0,[I]
+               LD V7,V0
+               RET
+
+               ;PUTMATRIX : put element into the gamematrix
+               ;in  : v5 =xcoord v6=ycoord v7=element no
+               ;out : -
+
+PUTMATRIX:     LD V1,#EB
+               LD V0,#FF 
+PM_L1:         ADD V0,1
+               ADD V1,1
+               SE V0,V5
+               JP PM_L1
+               LD V0,#FF
+PM_L2:         ADD V0,1
+               ADD V1,20
+               SE V0,V6
+               JP PM_L2
+               LD I,MATRIX
+               ADD I,V1
+               LD V0,V7
+               LD [I],V0
+               RET
+
+               ;BUILDFRAME : draws the frame of the margin
+               ;in   : -
+               ;out  : -
+
+BUILDFRAME:    LD V1,#FE
+               LD V7,7
+BF_L1:         ADD V1,2
+               LD I,FRAME
+               ADD I,V1
+               LD V0,[I]
+               LD V5,V0
+               LD I,FRAME+1
+               ADD I,V1
+               LD V0,[I]
+               LD V6,V0
+               LD R,V1
+               CALL BUILDELEM
+               LD V1,R
+               SE V1,106
+               JP BF_L1:
+               RET
+
+               ;FINDBLANK : calculates the mem. position of stoneblock 1 or 2
+               ;in   : va=stone no.
+               ;out  : vd=actual stone block no. ve=pos. of block 
+
+FINDBLANK:     SNE VA,6 ;i finden
+               JP FB_L1 
+               SNE VA,7
+               JP FB_L1
+               SNE VA,8
+               JP FB_L1
+               SNE VA,9
+               JP FB_L1
+               SNE VA,10
+               JP FB_L1
+               SNE VA,11
+               JP FB_L1
+               LD VD,0
+               LD V7,VA ;i+V7
+               JP FB_L2
+FB_L1:         LD VD,1
+               LD V7,VA
+               LD V0,6
+               SUB V7,V0
+FB_L2:         LD VE,#DC
+               LD V0,#FF
+FB_L3:         ADD VE,36
+               ADD V0,1
+               SE V0,V7
+               JP FB_L3
+               RET
+
+               ;FINDTURN : finds turn pos + blank stone block pos.
+               ;in  : vb=turn no.0-3
+               ;out : vc=modified pos of stone (real stone address)
+
+FINDTURN:      LD I,TPOS
+               ADD I,VB
+               LD V0,[I]
+               LD VC,V0
+               RET
+
+               ;SETSTONE : sets a stone on screen (XOR)
+               ;in   : v8-ve=see remark at top of document
+               ;out  : - 
+
+SETSTONE:      CALL FINDTURN
+               LD V1,#FF ;n - darst
+               LD V3,#FF ;y
+SS_L1:         LD V2,#FF ;x
+               ADD V3,1
+SS_L2:         ADD V2,1               
+               ADD V1,1
+               SE VD,0
+               JP SS_L3
+               LD I,STONES1
+               JP SS_L31
+SS_L3:         LD I,STONES2
+SS_L31:        ADD I,VE
+               ADD I,VC
+               ADD I,V1
+               LD V0,[I]
+               SNE V0,#FF
+               JP SS_L4
+               LD V5,V2
+               ADD V5,V8
+               LD V6,V3
+               ADD V6,V9
+               LD V7,V0
+               LD R,V3
+               CALL BUILDELEM
+               LD V3,R
+SS_L4:         SE V2,2
+               JP SS_L2
+               SE V3,2
+               JP SS_L1
+               RET
+
+               ;RNDSTONE : randomize a stone and checks scratcher (o)
+               ;in   : -
+               ;out  : va=new stone no. vb=turn no. 0
+
+RNDSTONE:      LD V1,0
+               RND V1,255
+               LD I,RNDLIST
+               ADD I,V1
+               LD V0,[I]
+               LD VA,V0
+               LD VB,0
+               CALL FINDBLANK
+               SE VA,11
+               RET
+               CALL TESTMATRIX
+               SE V7,1
+               RET
+               LD VA,0
+               LD VB,0
+               CALL FINDBLANK
+               RET
+               
+               ;TESTMATRIX : tests if the screen is out of tiles
+               ;in  : -
+               ;out : v7=screen status (1=nothing ; 0=something)
+
+TESTMATRIX:    LD V7,0
+               LD V2,0
+               LD V1,#FF
+TM_L1:         ADD V1,1
+               LD I,MATRIX
+               ADD I,V1
+               LD V0,[I]
+               SE V0,6
+               JP TM_L2
+               ADD V2,1
+TM_L2:         SE V1,179
+               JP TM_L1
+               SE V2,126
+               RET
+               LD V7,1
+               RET
+
+               ;GORIGHT : move stone position to right if it's possible
+               ;in  : v8=old x pos
+               ;out : v8=new x pos
+
+GORIGHT:       SNE V8,17
+               JP GR_L1
+               CALL SETSTONE
+               ADD V8,1
+               CALL SETSTONE
+GR_L1:         RET
+               
+               ;GOLEFT : move stone position to left if it's possible
+               ;in  : v8=old x pos
+               ;out : v8=new x pos
+
+GOLEFT:        SNE V8,0
+               JP GL_L1
+               CALL SETSTONE
+               LD V0,1
+               SUB V8,V0
+               CALL SETSTONE
+GL_L1:         RET
+               
+               ;GODOWN : move stone position down if it's possible
+               ;in  : v9=old y pos
+               ;out : v9=new y pos
+
+GODOWN:        SNE V9,6
+               JP GD_L1
+               CALL SETSTONE
+               ADD V9,1
+               CALL SETSTONE
+GD_L1:         RET
+               
+               ;GOUP : move stone position up if it's possible
+               ;in  : v9=old y pos
+               ;out : v9=new y pos
+
+GOUP:          SNE V9,0
+               JP GU_L1
+               CALL SETSTONE
+               LD V0,1
+               SUB V9,V0
+               CALL SETSTONE
+GU_L1:         RET
+               
+               ;TURN : turns stone 90 deg. 
+               ;in  : vb=old turn no.
+               ;out : vb=new turn no.
+
+TURN:          CALL SETSTONE
+               SNE VB,3
+               JP TU_L1
+               ADD VB,1
+               JP TU_L2
+TU_L1:         LD VB,0
+TU_L2:         CALL SETSTONE
+               RET
+
+               ;DROP : tests if there's a free  place and drops the stone 
+               ;in  : vb=old turn no.
+               ;out : vb=new turn no.
+
+DROP:          CALL FINDTURN
+               LD V1,#FF
+               LD V4,0
+               LD V3,#FF
+DR_L1:         LD V2,#FF
+               ADD V3,1
+DR_L2:         ADD V2,1
+               ADD V1,1
+               SE VD,0
+               JP DR_L3
+               LD I,STONES1
+               JP DR_L31
+DR_L3:         LD I,STONES2
+DR_L31:        ADD I,VE
+               ADD I,VC
+               ADD I,V1
+               LD V0,[I]
+               SNE V0,#FF
+               JP DR_L4
+               LD V5,V2
+               ADD V5,V8
+               LD V6,V3
+               ADD V6,V9
+               LD R,V3
+               CALL GETMATRIX
+               LD V3,R
+               SNE V7,6
+               JP DR_L4
+               LD V4,1
+DR_L4:         SE V2,2
+               JP DR_L2
+               SE V3,2
+               JP DR_L1
+
+               SE V4,0 ;1=FALSE
+               JP DR_L41
+
+               SNE VA,11
+               JP DR_L5
+               JP DR_L42
+
+DR_L41:        SNE VA,11
+               JP DR_L10 
+               JP DR_L5
+
+DR_L42:        LD V0,2
+               LD ST,V0
+               CALL FINDTURN
+               LD V1,#FF
+               LD V4,0
+               LD V3,#FF
+DR_L6:         LD V2,#FF
+               ADD V3,1
+DR_L7:         ADD V2,1
+               ADD V1,1
+               SE VD,0
+               JP DR_L8
+               LD I,STONES1
+               JP DR_L81
+DR_L8:         LD I,STONES2
+DR_L81:        ADD I,VE
+               ADD I,VC
+               ADD I,V1
+               LD V0,[I]
+               SNE V0,#FF
+               JP DR_L9
+               LD V5,V2
+               ADD V5,V8
+               LD V6,V3
+               ADD V6,V9
+               LD R,V3
+               LD V7,V0
+               CALL PUTMATRIX
+               LD V3,R
+DR_L9:         SE V2,2
+               JP DR_L7
+               SE V3,2
+               JP DR_L6
+               CALL TESTLOOP
+               CALL RNDSTONE
+               CALL SETSTONE
+               CALL FILLTIME
+               RET
+DR_L5:         LD V0,10
+               LD ST,V0
+               RET
+DR_L10:        LD V0,2
+               LD ST,V0
+               CALL SETSTONE
+               CALL SCRATCH
+               CALL RNDSTONE
+               CALL SETSTONE
+               CALL FILLTIME
+               RET
+
+               ;TESTLOOP : looks if there's a loop 
+               ;in   : v8,v9 = xpos,ypos Start of test
+               ;out  : -
+
+TESTLOOP:      LD V1,#FF
+               LD V0,0
+TL_L0:         ADD V1,1
+               LD I,LOOPLISTX
+               ADD I,V1
+               LD [I], V0
+               LD I,LOOPLISTY
+               ADD I,V1
+               LD [I], V0
+
+               SE V1,125
+               JP TL_L0
+
+               LD V5,V8
+               LD V6,V9
+               ADD V5,1
+               ADD V6,1
+               LD I,STARTPOS
+               LD V0,V5
+               LD V1,V6
+               LD [I],V1
+
+               CALL GETMATRIX
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               LD I,LOOP_IS
+               ADD I,V0
+               LD V0,[I]
+               LD V2,V0
+               LD V0,0
+               LD I,LISTPOS
+               LD [I],V0
+               SE V2,0
+               JP TL_L3
+               RET 
+
+TL_L1:         LD R,V3
+               CALL GETMATRIX
+               LD V3,R
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               LD I,LOOP_MUST
+               ADD I,V0
+               LD V1,[I]
+               LD V3,V0
+               LD V4,V1
+               
+               SE V2,V3
+               JP TL_L2
+
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               ADD V0,1
+               LD I,LOOP_IS
+               ADD I,V0
+               LD V0,[I]
+               LD V2,V0
+               JP TL_L3
+
+TL_L2:         SE V2,V4
+               RET
+
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               LD I,LOOP_IS
+               ADD I,V0
+               LD V0,[I]
+               LD V2,V0
+               
+TL_L3:         LD I,LISTPOS
+               LD V0,[I]
+               LD I,LOOPLISTX
+               ADD I,V0
+               LD V0,V5
+               LD [I],V0
+               LD I,LISTPOS
+               LD V0,[I]
+               LD I,LOOPLISTY
+               ADD I,V0
+               LD V0,V6
+               LD [I],V0
+               LD I,LISTPOS
+               LD V0,[I]
+               ADD V0,1
+               LD [I],V0
+
+               LD V0,1
+               SNE V2,1
+               SUB V6,V0
+               SNE V2,2
+               ADD V5,1
+               SNE V2,3
+               ADD V6,1
+               SNE V2,4
+               SUB V5,V0
+               LD I,STARTPOS
+               LD V1,[I]
+               SE V0,V5
+               JP TL_L4
+               SE V1,V6
+               JP TL_L4
+               JP TL_EXIT2
+TL_L4:         JP TL_L1
+
+TL_EXIT2:      LD R,V3
+               CALL GETMATRIX
+               LD V3,R
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               LD I,LOOP_MUST
+               ADD I,V0
+               LD V1,[I]
+               LD V3,V0
+               LD V4,V1
+               SE V2,V3
+               JP TL_EL1
+               JP TL_EL2
+TL_EL1:        SE V2,V4
+               RET
+TL_EL2:        CALL DELLOOP
+               CALL INCLOOP
+               RET
+
+               ;DELLOOP : Deletes LOOP standing in LoopList x,y
+               ;in   : va = Score adder (11=Scratch 2; other = level Score)
+               ;out  : -
+
+DELLOOP:       LD I,LISTPOS
+               LD V0,[I]
+               LD V2,V0
+               LD V0,1
+               SUB V2,V0
+               LD V1,#FF
+               SNE VA,11
+               LD V1,0
+DL_L1:         LD V0,1
+               LD ST,V0
+               ADD V1,1
+               LD I,LOOPLISTX
+               ADD I,V1
+               LD V0,[I]
+               LD V5,V0
+               LD I,LOOPLISTY
+               ADD I,V1
+               LD V0,[I]
+               LD V6,V0
+               LD V4,6
+               LD R,V3
+               CALL GETMATRIX
+               LD V0,V4
+               LD V4,V7
+               LD V7,V0
+               CALL PUTMATRIX
+               LD V7,V4
+               CALL BUILDELEM
+               SE VA,11
+               JP DL_L2
+               LD V7,2
+               CALL ADDSCORE
+               JP DL_L3
+DL_L2:         LD I,LEVEL
+               LD V0,[I]
+               LD I,LEVELSCORE
+               ADD I,V0
+               LD V0,[I]
+               LD V7,V0
+               CALL ADDSCORE
+DL_L3:         LD V3,R
+               SE V1,V2
+               JP DL_L1
+               RET
+
+               ;SCRATCH : deletes unfinished loops
+               ;in   : v8,v9 =  xpos,ypos
+               ;out  : -
+
+SCRATCH:       LD V1,#FF
+               LD V0,0
+SC_L0:         ADD V1,1
+               LD I,LOOPLISTX
+               ADD I,V1
+               LD [I], V0
+               LD I,LOOPLISTY
+               ADD I,V1
+               LD [I], V0
+               SE V1,125
+               JP SC_L0
+               LD V0,0
+               LD I,LISTPOS
+               LD [I],V0
+
+               LD I,SCRATCHWAY
+               LD V0,0
+               LD [I],V0
+               
+SC_BL1:        LD V5,V8
+               LD V6,V9
+               ADD V5,1
+               ADD V6,1
+               LD I,STARTPOS
+               LD V0,V5
+               LD V1,V6
+               LD [I],V1
+               LD R,V3
+               CALL GETMATRIX
+               LD V3,R
+               LD I,SCRATCHWAY
+               LD V0,[I]
+               LD V1,V0
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               ADD V0,V1
+               LD I,LOOP_IS
+               ADD I,V0
+               LD V0,[I]
+               LD V2,V0
+               SE V2,0
+               JP SC_L3
+               JP SC_BL2
+SC_L1:         LD R,V3
+               CALL GETMATRIX
+               LD V3,R
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               LD I,LOOP_MUST
+               ADD I,V0
+               LD V1,[I]
+               LD V3,V0
+               LD V4,V1
+               
+               SE V2,V3
+               JP SC_L2
+
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               ADD V0,1
+               LD I,LOOP_IS
+               ADD I,V0
+               LD V0,[I]
+               LD V2,V0
+               JP SC_L3
+
+SC_L2:         SE V2,V4
+               JP SC_BL2
+
+               LD I,LOOPROW
+               ADD I,V7
+               LD V0,[I]
+               LD I,LOOP_IS
+               ADD I,V0
+               LD V0,[I]
+               LD V2,V0
+               
+SC_L3:         LD I,LISTPOS
+               LD V0,[I]
+               SNE V0,0
+               JP SC_L4
+               LD I,LOOPLISTX
+               ADD I,V0
+               LD V0,V5
+               LD [I],V0
+               LD I,LISTPOS
+               LD V0,[I]
+               LD I,LOOPLISTY
+               ADD I,V0
+               LD V0,V6
+               LD [I],V0
+SC_L4:         LD I,LISTPOS
+               LD V0,[I]
+               ADD V0,1
+               LD [I],V0
+
+               LD V0,1
+               SNE V2,1
+               SUB V6,V0
+               SNE V2,2
+               ADD V5,1
+               SNE V2,3
+               ADD V6,1
+               SNE V2,4
+               SUB V5,V0
+               JP SC_L1
+SC_BL2:        LD I,SCRATCHWAY
+               LD V0,[I]
+               ADD V0,1
+               SNE V0,2
+               JP SC_EXIT
+               LD [I],V0
+               JP SC_BL1
+SC_EXIT:       CALL DELLOOP
+               RET
+
+               ;SETTIME : sets a clock tick | 
+               ;in  : v7 = tick no. (0-29)
+               ;out : -
+
+SETTIME:       LD V2,55
+               LD I,TIMEPOS
+               ADD I,V7
+               LD V0,[I]
+               LD I,TIMEGRA
+               DRW V0,V2,5
+               RET
+
+               ;FILLTIME : fills clock with ticks
+               ;in   : -
+               ;out  : -
+
+FILLTIME:      LD I,AKTTIME
+               LD V0,[I]
+               LD V1,V0
+               LD V0,1
+               SUB V1,V0
+               LD V0,30
+               LD [I],V0
+               SNE V1,29
+               JP FT_L2
+FT_L1:         ADD V1,1
+               LD V7,V1
+               LD R,V1
+               CALL SETTIME
+               LD V1,R
+               SE V1,29
+               JP FT_L1
+FT_L2:         LD I,LEVEL
+               LD V0,[I]
+               LD I,LEVELSPEED
+               ADD I,V0
+               LD V0,[I]
+               LD DT,V0
+               RET
+
+               ;DECTIME : decrements the ticks | of the clock
+               ;in   : -
+               ;out  : -
+
+DECTIME:       LD V0,DT
+               SE V0,0
+               RET
+               LD I,AKTTIME
+               LD V0,[I]
+               LD V1,1
+               SUB V0,V1
+               LD [I],V0
+               LD V7,V0
+               CALL SETTIME
+               LD I,LEVEL
+               LD V0,[I]
+               LD I,LEVELSPEED
+               ADD I,V0
+               LD V0,[I]
+               LD DT,V0
+               RET
+
+               ;SETLIFE : sets a life point (o)
+               ;in   : v7 = life no.
+               ;out  : -
+
+SETLIFE:       LD V2,1
+               LD I,LIFESPOS
+               ADD I,V7
+               LD V0,[I]
+               LD I,LIFESGRA
+               DRW V2,V0,4
+               RET
+
+               ;VIEWLIFES : views three lifes
+               ;in   : -
+               ;out  : -
+
+VIEWLIFES:     LD V7,0
+               CALL SETLIFE
+               LD V7,1
+               CALL SETLIFE
+               LD V7,2
+               CALL SETLIFE
+               RET
+
+               ;DECLIFE : lose a life
+               ;in   : -
+               ;out  : -
+               
+DECLIFE:       LD I,LIFES
+               LD V0,[I]
+               LD V7,V0
+               LD V1,1
+               SUB V0,V1
+               LD [I],V0
+               CALL SETLIFE
+               RET
+
+               ;VIEWLOOP : writes no. of loops
+               ;in   : -
+               ;out  : -
+               
+VIEWLOOP:      LD V1,#FF
+               LD V4,55
+VL_L1:         ADD V1,1               
+               LD I,FIGLOOP
+               ADD I,V1
+               LD V0,[I]
+               LD V2,V0
+               LD I,LOOP
+               ADD I,V1
+               LD V0,[I]
+               LD V3,V0
+               
+               LD I,FIGPOS
+               ADD I,V3
+               LD V0,[I]
+               LD I,FIGGRA
+               ADD I,V0
+               DRW V2,V4,5
+               SE V1,2
+               JP VL_L1
+               RET
+
+               ;VIEWSCORE : writes Score
+               ;in   : -
+               ;out  : -
+
+VIEWSCORE:     LD V1,#FF
+               LD V4,55
+VS_L1:         ADD V1,1               
+               LD I,FIGSCORE
+               ADD I,V1
+               LD V0,[I]
+               LD V2,V0
+               LD I,SCORE
+               ADD I,V1
+               LD V0,[I]
+               LD V3,V0
+               
+               LD I,FIGPOS
+               ADD I,V3
+               LD V0,[I]
+               LD I,FIGGRA
+               ADD I,V0
+               DRW V2,V4,5
+               SE V1,5
+               JP VS_L1
+               RET
+
+               ;INCLOOP : incrediments no. of loops
+               ;in   : -
+               ;out  : -
+
+INCLOOP:       CALL VIEWLOOP
+               LD V1,3
+IL_L1:         LD V0,1
+               SUB V1,V0
+               LD I,LOOP
+               ADD I,V1
+               LD V0,[I]
+               SNE V0,9
+               JP IL_L2
+               ADD V0,1
+               LD [I],V0
+               JP IL_EX
+IL_L2:         LD V0,0
+               LD [I],V0
+               SE V1,0
+               JP IL_L1:
+
+               LD V0,0
+               LD I,LOOP
+               LD [I],V0
+               LD I,LOOP+1
+               LD [I],V0
+               LD I,LOOP+2
+               LD [I],V0
+
+IL_EX:         CALL VIEWLOOP
+               RET
+
+               ;ADDSCORE : adds score to the last score
+               ;in   : v7=points to add
+               ;out  : -
+
+ADDSCORE:      CALL VIEWSCORE
+               LD V2,0
+IS_BL1:        ADD V2,1
+               LD V1,6
+IS_L1:         LD V0,1
+               SUB V1,V0
+               LD I,SCORE
+               ADD I,V1
+               LD V0,[I]
+               SNE V0,9
+               JP IS_L2
+               ADD V0,1
+               LD [I],V0
+               JP IS_BL2
+
+IS_L2:         LD V0,0
+               LD [I],V0
+               SE V1,0
+               JP IS_L1
+
+               LD V0,0
+               LD I,SCORE
+               LD [I],V0
+               LD I,SCORE+1
+               LD [I],V0
+               LD I,SCORE+2
+               LD [I],V0
+               LD I,SCORE+3
+               LD [I],V0
+               LD I,SCORE+4
+               LD [I],V0
+               LD I,SCORE+5
+               LD [I],V0
+IS_BL2:        SE V2,V7
+               JP IS_BL1
+
+               CALL VIEWSCORE
+               RET
+
+               ;SCMATRIX : Deletes the whole MATRIX (GAME OVER)
+               ;in   : -
+               ;out  : -
+
+SCMATRIX:      CALL TESTMATRIX
+               SE V7,0
+               RET
+               LD VA,11
+               LD V3,#FF
+SM_L1:         ADD V3,1
+               LD V2,#FF
+SM_L2:         ADD V2,1
+               LD V5,V2
+               ADD V5,1
+               LD V6,V3
+               ADD V6,1
+               CALL GETMATRIX
+               SNE V7,6
+               JP SM_L3
+               LD I,SCMATV2
+               LD V0,V2
+               LD [I],V0
+               LD I,SCMATV3
+               LD V0,V3
+               LD [I],V0
+               LD V8,V2
+               LD V9,V3
+               CALL SCRATCH
+               LD I,SCMATV2
+               LD V0,[I]
+               LD V2,V0
+               LD I,SCMATV3
+               LD V0,[I]
+               LD V3,V0
+               LD R,V3
+               CALL TESTMATRIX
+               LD V3,R
+               SE V7,0
+               RET
+SM_L3:         SE V2,17
+               JP SM_L2
+               SE V3,6
+               JP SM_L1
+               RET
+
+               ;---------
+               ;DATABLOCK
+               ;---------
+
+ALIGN          OFF
+
+               ;Tiles of game 
+GRAPHICS =     ?               
+               DB $01111100,$11111100,$11000000,$11000000,$11001100,$11001100 ;TL
+               DB $11111000,$11111100,$00001100,$00001100,$11001100,$11001100 ;TR
+               DB $11001100,$11001100,$11000000,$11000000,$11111100,$01111100 ;DL
+               DB $11001100,$11001100,$00001100,$00001100,$11111100,$11111000 ;DR
+               DB $11001100,$11001100,$11001100,$11001100,$11001100,$11001100 ;TD
+               DB $11111100,$11111100,$00000000,$00000000,$11111100,$11111100 ;LR
+               DB $00000000,$00000000,$00000000,$00000000,$00000000,$00000000 ;BG
+               DB $10101000,$01010100,$10101000,$01010100,$10101000,$01010100 ;BO
+               DB $00110000,$01111000,$11111100,$11111100,$01111000,$00110000 ;SC
+
+               ;Time ticker
+TIMEGRA =      ?
+               DB $11000000,$11000000,$11000000,$11000000,$11000000
+
+               ;Life ticker
+LIFESGRA =     ?
+               DB $01100000,$11110000,$11010000,$01100000
+
+               ;Figures for Loop and Score
+FIGGRA =       ?
+               DB $01000000,$10100000,$10100000,$10100000,$01000000 ;0
+               DB $01000000,$11000000,$01000000,$01000000,$11100000 ;1
+               DB $11000000,$00100000,$01000000,$10000000,$11100000 ;2
+               DB $11100000,$00100000,$01000000,$00100000,$11100000 ;3
+               DB $10000000,$10100000,$11100000,$00100000,$00100000 ;4
+               DB $11100000,$10000000,$11000000,$00100000,$11100000 ;5
+               DB $01100000,$10000000,$11000000,$10100000,$11100000 ;6
+               DB $11100000,$00100000,$01000000,$01000000,$01000000 ;7
+               DB $11100000,$10100000,$01000000,$10100000,$11100000 ;8
+               DB $11100000,$10100000,$01100000,$00100000,$11000000 ;9
+
+               ;normal matrix will be copied into matrix
+MATRIXNORM =   ?  
+               DB #07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07
+
+               ;game matrix
+MATRIX =       ?        
+               DB #07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#06,#07
+               DB #07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07,#07
+
+               ;datas to build frame x,y,x,y etc.
+FRAME =        ?
+               DB 0,0, 0,1, 1,0, 0,2, 2,0, 0,3, 3,0, 0,4, 4,0, 0,5, 5,0, 0,6, 6,0, 0,7 
+               DB 7,0, 0,8, 8,0, 1,8, 9,0, 2,8, 10,0,3,8,11,0, 4,8,12,0, 5,8,13,0, 6,8 
+               DB 14,0,7,8, 15,0,8,8,16,0, 9,8,17,0,10,8,18,0,11,8,19,0,12,8, 19,1,13,8
+               DB 19,2,14,8,19,3,15,8,19,4,16,8,19,5,17,8,19,6,18,8,19,7,19,8
+
+               ;xpos for building tiles
+XPOS =         ?
+               DB 6,12,18,24,30,36,42,48,54,60,66,72,78,84,90,96,102,108,114,120
+
+               ;ypos for building tiles and building graphic tiles
+YPOS =         ?           
+               DB 0,6,12,18,24,30,36,42,48
+TPOS:          DB 0,9,18,27
+
+               ;random list to calculate the tiles and scratcher
+RNDLIST =      ?       
+               DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+               DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+               DB 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+               DB 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+               DB 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2
+               DB 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3  
+               DB 4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4
+               DB 5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5
+               DB 6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6
+               DB 7,7,7,7,7,7,7,7,7,7,7,7,7
+               DB 8,8,8,8,8,8,8,8,8,8,8,8,8
+               DB 9,9,9,9,9,9,9
+               DB 10,10,10,10,10,10,10
+               DB 11,11,11,11,11,11
+
+               ;exitcodes for the tiles (in switch)
+LOOP_IS =      ?
+               DB 2,3, 4,3, 1,2, 1,4, 1,3, 4,2, 0,0, 0,0 ,0,0, 0,0
+
+               ;exitcode for the tiles (must switch)
+LOOP_MUST =    ?
+               DB 4,1, 2,1, 3,4, 3,2, 3,1, 2,4, 0,0, 0,0 ,0,0, 0,0
+
+               ;?
+LOOPROW =      ?
+               DB 0,   2,   4,   6 ,  8,   10 ,  12,  14 , 16, 18
+
+               ;Startpos. of Testloop
+STARTPOS =     ?
+               DB 0,0
+
+               ;Listpos of LoopList
+LISTPOS =      ?
+               DB 00
+
+               ;LoopList 
+LOOPLISTX =    ?        
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+LOOPLISTY =    ?        
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+               DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+               ;used by scratch
+SCRATCHWAY =   ?
+               DB 00
+
+               ;x time pos. on screen
+TIMEPOS =      ?
+               DB 36,38,40,42,44,46,48,50,52,54,56,58,60,62
+               DB 64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94
+
+               ;Act. time
+AKTTIME =      ?
+               DB 0
+
+               ;y lifes pos. on screen
+LIFESPOS =     ?
+               DB 50,45,40
+
+               ;no. of lifes
+LIFES =        ?
+               DB 0
+
+               ;datas for building figures
+FIGPOS =       ?
+               DB 0,5,10,15,20,25,30,35,40,45
+FIGLOOP =      ?              
+               DB 6,10,14
+FIGSCORE =     ?
+               DB 103,107,111,115,119,123
+
+LOOP =         ?
+               DB 0,0,0
+SCORE =        ?
+               DB 0,0,0,0,0,0
+LEVEL =        ?
+               DB 0
+
+               ;Score add. and speed for each level
+LEVELSCORE =   ?
+               DB 3,6,9,12,15,18,21,24,27,30
+LEVELSPEED =   ?
+               DB 22,20,18,16,14,12,10,8,6,4
+
+SCMATV2:       DB 0
+SCMATV3:       DB 0
+
+STONES1 =      ?        
+               DB #FF,#FF,#FF  ;##
+               DB #FF,#02,#FF  ;#  
+               DB #FF,#FF,#FF  
+
+               DB #FF,#FF,#FF
+               DB #FF,#03,#FF
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#FF
+               DB #FF,#01,#FF
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#FF
+               DB #FF,#00,#FF
+               DB #FF,#FF,#FF
+
+
+               DB #FF,#FF,#FF  ;## 
+               DB #FF,#04,#FF
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#FF
+               DB #FF,#05,#FF
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#FF
+               DB #FF,#04,#FF
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#FF
+               DB #FF,#05,#FF
+               DB #FF,#FF,#FF
+
+               
+               DB #FF,#04,#FF  ;#
+               DB #FF,#02,#05  ;#
+               DB #FF,#FF,#FF  ;###
+
+               DB #FF,#04,#FF
+               DB #05,#03,#FF
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#FF
+               DB #05,#01,#FF
+               DB #FF,#04,#FF
+
+               DB #FF,#FF,#FF
+               DB #FF,#00,#05
+               DB #FF,#04,#FF
+               
+
+               DB #FF,#FF,#FF  ;#####
+               DB #00,#05,#01  ;#   #
+               DB #04,#FF,#04  ;#   #
+
+               DB #FF,#00,#05
+               DB #FF,#04,#FF
+               DB #FF,#02,#05
+
+               DB #04,#FF,#04
+               DB #02,#05,#03
+               DB #FF,#FF,#FF
+
+               DB #05,#01,#FF
+               DB #FF,#04,#FF
+               DB #05,#03,#FF
+
+               
+               DB #FF,#FF,#FF  ;######
+               DB #05,#05,#05 
+               DB #FF,#FF,#FF
+
+               DB #FF,#04,#FF
+               DB #FF,#04,#FF
+               DB #FF,#04,#FF
+
+               DB #FF,#FF,#FF
+               DB #05,#05,#05
+               DB #FF,#FF,#FF
+
+               DB #FF,#04,#FF
+               DB #FF,#04,#FF
+               DB #FF,#04,#FF
+               
+
+               DB #FF,#FF,#FF  ;######
+               DB #05,#05,#01  ;     #
+               DB #FF,#FF,#04  
+
+               DB #FF,#00,#05
+               DB #FF,#04,#FF
+               DB #FF,#04,#FF
+
+               DB #04,#FF,#FF
+               DB #02,#05,#05
+               DB #FF,#FF,#FF
+
+               DB #FF,#04,#FF
+               DB #FF,#04,#FF
+               DB #05,#03,#FF
+
+STONES2 =      ?         
+               DB #FF,#FF,#FF  ;######
+               DB #00,#05,#05  ;#
+               DB #04,#FF,#FF
+
+               DB #FF,#04,#FF
+               DB #FF,#04,#FF
+               DB #FF,#02,#05
+
+               DB #FF,#FF,#04
+               DB #05,#05,#03
+               DB #FF,#FF,#FF
+
+               DB #05,#01,#FF
+               DB #FF,#04,#FF
+               DB #FF,#04,#FF
+
+               
+               DB #04,#FF,#FF ;#
+               DB #02,#01,#FF ;###
+               DB #FF,#04,#FF ;  #
+
+               DB #FF,#FF,#FF
+               DB #FF,#00,#05
+               DB #05,#03,#FF
+
+               DB #04,#FF,#FF
+               DB #02,#01,#FF
+               DB #FF,#04,#FF
+
+               DB #FF,#FF,#FF
+               DB #FF,#00,#05
+               DB #05,#03,#FF
+
+               
+               DB #FF,#FF,#04  ;  #
+               DB #FF,#00,#03  ;###
+               DB #FF,#04,#FF  ;#
+
+               DB #05,#01,#FF
+               DB #FF,#02,#05
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#04 
+               DB #FF,#00,#03
+               DB #FF,#04,#FF
+
+               DB #05,#01,#FF
+               DB #FF,#02,#05
+               DB #FF,#FF,#FF
+
+               
+               DB #04,#FF,#FF  ;#
+               DB #02,#05,#01  ;######
+               DB #FF,#FF,#04  ;     #
+
+               DB #FF,#00,#05
+               DB #FF,#04,#FF
+               DB #05,#03,#FF
+
+               DB #04,#FF,#FF 
+               DB #02,#05,#01
+               DB #FF,#FF,#04
+
+               DB #FF,#00,#05
+               DB #FF,#04,#FF
+               DB #05,#03,#FF
+
+               
+               DB #FF,#FF,#04  ;    #
+               DB #00,#05,#03  ;#####
+               DB #04,#FF,#FF  ;#
+
+               DB #05,#01,#FF
+               DB #FF,#04,#FF
+               DB #FF,#02,#05
+
+               DB #FF,#FF,#04 
+               DB #00,#05,#03
+               DB #04,#FF,#FF
+
+               DB #05,#01,#FF
+               DB #FF,#04,#FF
+               DB #FF,#02,#05
+
+
+               DB #FF,#FF,#FF  ;  Scratcher
+               DB #FF,#08,#FF
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#FF 
+               DB #FF,#08,#FF
+               DB #FF,#FF,#FF
+               
+               DB #FF,#FF,#FF 
+               DB #FF,#08,#FF
+               DB #FF,#FF,#FF
+
+               DB #FF,#FF,#FF 
+               DB #FF,#08,#FF
+               DB #FF,#FF,#FF
+
+ALIGN          ON                            ;End of Source Prg.
+
+
+
